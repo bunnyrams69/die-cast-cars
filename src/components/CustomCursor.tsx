@@ -1,38 +1,65 @@
 "use client";
-import { useEffect, useState, useCallback } from "react";
+
 import { motion, useMotionValue, useSpring } from "framer-motion";
+import { useEffect, useState } from "react";
+
+const DOT_SPRING = { mass: 0.1, damping: 10, stiffness: 131 };
+const RING_SPRING = { mass: 0.3, damping: 15, stiffness: 100 };
 
 export default function CustomCursor() {
   const [hasMouse, setHasMouse] = useState(false);
-  const cursorX = useMotionValue(-100);
-  const cursorY = useMotionValue(-100);
 
-  const springConfig = { damping: 25, stiffness: 400 };
-  const ringX = useSpring(cursorX, springConfig);
-  const ringY = useSpring(cursorY, springConfig);
+  // Raw position values
+  const mouseX = useMotionValue(-100);
+  const mouseY = useMotionValue(-100);
+
+  // Inner dot springs (tight, snappy)
+  const dotX = useSpring(mouseX, DOT_SPRING);
+  const dotY = useSpring(mouseY, DOT_SPRING);
+
+  // Outer ring springs (laggier, playful trailing)
+  const ringX = useSpring(mouseX, RING_SPRING);
+  const ringY = useSpring(mouseY, RING_SPRING);
+
+  // Opacity & scale springs
+  const opacitySpring = useSpring(0, DOT_SPRING);
+  const scaleSpring = useSpring(0, DOT_SPRING);
 
   useEffect(() => {
-    // Only show custom cursor on non-touch desktop devices
-    const isTouchDevice = "ontouchstart" in window || navigator.maxTouchPoints > 0;
+    const isTouchDevice =
+      "ontouchstart" in window || navigator.maxTouchPoints > 0;
     if (isTouchDevice) {
       document.body.style.cursor = "";
-      const buttons = document.querySelectorAll("button, a");
-      buttons.forEach((el) => ((el as HTMLElement).style.cursor = ""));
       return;
     }
 
+    setHasMouse(true);
+
     const handleMouseMove = (e: MouseEvent) => {
-      cursorX.set(e.clientX);
-      cursorY.set(e.clientY);
-      if (!hasMouse) setHasMouse(true);
+      mouseX.set(e.clientX);
+      mouseY.set(e.clientY);
+      opacitySpring.set(1);
+      scaleSpring.set(1);
+    };
+
+    const handleMouseLeave = () => {
+      opacitySpring.set(0);
+      scaleSpring.set(0);
+    };
+
+    const handleMouseEnter = () => {
+      opacitySpring.set(1);
+      scaleSpring.set(1);
     };
 
     window.addEventListener("mousemove", handleMouseMove);
-    // Trigger on first interaction
-    setHasMouse(true);
+    document.addEventListener("mouseleave", handleMouseLeave);
+    document.addEventListener("mouseenter", handleMouseEnter);
 
     return () => {
       window.removeEventListener("mousemove", handleMouseMove);
+      document.removeEventListener("mouseleave", handleMouseLeave);
+      document.removeEventListener("mouseenter", handleMouseEnter);
     };
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
@@ -40,27 +67,31 @@ export default function CustomCursor() {
 
   return (
     <>
-      {/* Inner dot */}
+      {/* Inner dot — snappy spring */}
       <motion.div
-        className="fixed top-0 left-0 w-[8px] h-[8px] bg-[#E8000D] rounded-full pointer-events-none"
         style={{
-          x: cursorX,
-          y: cursorY,
+          x: dotX,
+          y: dotY,
+          opacity: opacitySpring,
+          scale: scaleSpring,
           translateX: "-50%",
           translateY: "-50%",
           zIndex: 99999,
         }}
+        className="fixed top-0 left-0 size-[10px] rounded-full bg-[#E8000D] pointer-events-none"
       />
-      {/* Outer ring with spring lag */}
+      {/* Outer ring — laggier trailing spring */}
       <motion.div
-        className="fixed top-0 left-0 w-[36px] h-[36px] border border-[#E8000D]/30 rounded-full pointer-events-none"
         style={{
           x: ringX,
           y: ringY,
+          opacity: opacitySpring,
+          scale: scaleSpring,
           translateX: "-50%",
           translateY: "-50%",
           zIndex: 99998,
         }}
+        className="fixed top-0 left-0 size-[40px] rounded-full border border-[#E8000D]/30 pointer-events-none"
       />
     </>
   );
